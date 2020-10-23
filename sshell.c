@@ -38,7 +38,6 @@ struct pipeData {
 int Parse(char *cmd, char **argv)
 {
         if (strlen(cmd) == 0) {
-                fprintf(stderr, "Error: missing command\n");
                 return CMD_FAILURE;
         }
 
@@ -137,13 +136,14 @@ struct pipeData ScanPipes(char *cmd)
                 return data;
         }
 
-        if (cmdcount <= data.pipeCount) {
+        if (data.pipeCount && cmdcount <= data.pipeCount) {
                 fprintf(stderr, "Error: missing command\n");
                 data.status = CMD_FAILURE;
                 return data;
         }
 
         data.cmdv[cmdcount] = NULL;
+        data.status = CMD_SUCCESS;
 
         return data;
 }
@@ -308,10 +308,6 @@ void Pipe(struct pipeData data, char **argv, int *stdfd)
 void MySystem(const char *cmd, char **argv)
 {
         int retval;
-        static int stdfd[2];
-        stdfd[STDIN_FILENO] = dup(STDIN_FILENO);
-        stdfd[STDOUT_FILENO] = dup(STDOUT_FILENO);
-
         char cmdcopy[CMDLINE_MAX];
         strcpy(cmdcopy, cmd);
 
@@ -325,9 +321,15 @@ void MySystem(const char *cmd, char **argv)
 
         if (pipedata.pipeCount == 0 && Parse(cmdcopy, argv) == CMD_FAILURE)
                 return;
+
+        static int stdfd[2];
+        stdfd[STDIN_FILENO] = dup(STDIN_FILENO);
+        stdfd[STDOUT_FILENO] = dup(STDOUT_FILENO);
         
-        if (redirdata.mode != REDIR_NONE && Redirect(redirdata))
+        if (redirdata.mode != REDIR_NONE && Redirect(redirdata)) {
+                ResetFD(stdfd);
                 return;
+        }
 
         if (pipedata.pipeCount > 0) {
                 Pipe(pipedata, argv, stdfd);
